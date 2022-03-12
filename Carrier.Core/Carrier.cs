@@ -87,6 +87,55 @@ namespace Carrier.Core
             return await ReceiveAck(connectionId, maxMs);
         }
 
+        public async Task<bool> SendToAllAndAwaitAck<T>(TMessageType messageType, T data, int maxMs = 5000)
+        {
+            await SendToAll(messageType, data);
+            return await ReceiveAcks(GetReceiverIds(), maxMs);
+        }
+
+        public async Task<bool> SendToAllAndAwaitAck<T>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        {
+            await SendToAll(messageType, getData);
+            return await ReceiveAcks(GetReceiverIds(), maxMs);
+        }
+
+        public async Task<bool> SendToAllExceptAndAwaitAck<T>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000)
+        {
+            await SendToAllExcept(exceptConnectionId, messageType, data);
+            return await ReceiveAcks(GetReceiverIds().Where(id => id != exceptConnectionId), maxMs);
+        }
+
+        public async Task<bool> SendToAllExceptAndAwaitAck<T>(string exceptConnectionId, TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        {
+            await SendToAllExcept(exceptConnectionId, messageType, getData);
+            return await ReceiveAcks(GetReceiverIds().Where(id => id != exceptConnectionId), maxMs);
+        }
+
+        public Task<T2> SendAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<IEnumerable<T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        {
+            throw new NotImplementedException();
+        }
+
         public void Ack(string connectionId)
         {
             GetReceiver(connectionId).Ack();
@@ -95,10 +144,33 @@ namespace Carrier.Core
         private async Task<bool> ReceiveAck(string connectionId, int maxMs)
         {
             var task = new Task(() => { });
-            GetReceiver(connectionId).OnAck(() => task.Start());
+            GetReceiver(connectionId).OnAck(() => task.StartSafe());
             return await Task.WhenAny(task, Task.Delay(maxMs)) == task;
         }
 
+        private async Task<bool> ReceiveAcks(IEnumerable<string> connectionIds, int maxMs)
+        {
+            var tasks = connectionIds.Select(connectionId =>
+            {
+                var task = new Task(() => { });
+                GetReceiver(connectionId).OnAck(() => task.StartSafe());
+                return task;
+            });
+            var delayTask = Task.Delay(maxMs);
+            return await Task.WhenAny(Task.WhenAll(tasks), delayTask) != delayTask;
+        }
+
         private readonly ICarrierTransport<TMessageType> transport;
+    }
+
+    public static class TaskExtensions
+    {
+        public static void StartSafe(this Task task)
+        {
+            if (task.Status == TaskStatus.Created) 
+            { 
+                task.Start(); 
+            }
+        }
     }
 }

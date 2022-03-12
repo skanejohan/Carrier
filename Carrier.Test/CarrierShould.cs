@@ -12,20 +12,20 @@ namespace CarrierTest
 {
     public class CarrierShould
     {
-        [SetUp]
-        public void Setup()
+        [OneTimeSetUp]
+        public async Task Setup()
         {
-            server = GetServer();
-           
+            var server = GetServer();
+
             carrier = SignalRCarrierFactory.GetCarrier<MessageType>(server.Services);
+            client1 = await GetClient(server);
+            client2 = await GetClient(server);
+            client3 = await GetClient(server);
         }
 
         [Test]
         public async Task SendToAll()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
-
             var assertion1 = client1.Expect("MyMethod1", "15");
             var assertion2 = client2.Expect("MyMethod1", "15");
 
@@ -38,9 +38,6 @@ namespace CarrierTest
         [Test]
         public async Task SendToAllGetData()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
-
             var assertion1 = client1.Expect("MyMethod1", "1");
             var assertion2 = client1.Expect("MyMethod1", "2");
             var assertion3 = client2.Expect("MyMethod1", "1");
@@ -57,9 +54,6 @@ namespace CarrierTest
         [Test]
         public async Task SendToOne()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
-
             var assertion1 = client1.Expect("MyMethod1", "15");
             var assertion2 = client2.Expect("MyMethod1", "15");
 
@@ -72,9 +66,6 @@ namespace CarrierTest
         [Test]
         public async Task SendToAllExcept()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
-
             var assertion1 = client1.Expect("MyMethod1", "15");
             var assertion2 = client2.Expect("MyMethod1", "15");
 
@@ -87,10 +78,6 @@ namespace CarrierTest
         [Test]
         public async Task SendToAllExceptGetData()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
-            var client3 = await GetClient(server);
-
             var assertion1 = client1.Expect("MyMethod1", "1");
             var assertion2 = client1.Expect("MyMethod1", "2");
             var assertion3 = client2.Expect("MyMethod1", "1");
@@ -111,17 +98,14 @@ namespace CarrierTest
         [Test]
         public async Task SendToOneAndAwaitAck()
         {
-            var client = await GetClient(server);
-            var assertion = carrier.SendToAndAwaitAck(client.ConnectionId, MessageType.MyMethod1, 15);
-            carrier.Ack(client.ConnectionId);
+            var assertion = carrier.SendToAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Ack(client1.ConnectionId);
             Assert.True(await assertion);
         }
 
         [Test]
         public async Task SendToTwoAwaitingAckFromOne()
         {
-            var client1 = await GetClient(server);
-            var client2 = await GetClient(server);
             var assertion1 = carrier.SendToAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, 15);
             var assertion2 = carrier.SendToAndAwaitAck(client2.ConnectionId, MessageType.MyMethod1, 15);
             carrier.Ack(client1.ConnectionId);
@@ -132,8 +116,79 @@ namespace CarrierTest
         [Test]
         public async Task SendToOneAndAwaitAckInVain()
         {
-            var client = await GetClient(server);
-            var assertion = carrier.SendToAndAwaitAck(client.ConnectionId, MessageType.MyMethod1, 15);
+            var assertion = carrier.SendToAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, 15);
+            Assert.False(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAck()
+        {
+            var assertion = carrier.SendToAllAndAwaitAck(MessageType.MyMethod1, 15);
+            carrier.Ack(client1.ConnectionId);
+            carrier.Ack(client2.ConnectionId);
+            carrier.Ack(client3.ConnectionId);
+            Assert.True(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAckInVainForOne()
+        {
+            var assertion = carrier.SendToAllAndAwaitAck(MessageType.MyMethod1, 15);
+            carrier.Ack(client1.ConnectionId);
+            carrier.Ack(client2.ConnectionId);
+            Assert.False(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAckGetData()
+        {
+            var assertion = carrier.SendToAllAndAwaitAck(MessageType.MyMethod1, id => id);
+            carrier.Ack(client1.ConnectionId);
+            carrier.Ack(client2.ConnectionId);
+            carrier.Ack(client3.ConnectionId);
+            Assert.True(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAckInVainForOneGetData()
+        {
+            var assertion = carrier.SendToAllAndAwaitAck(MessageType.MyMethod1, id => id);
+            carrier.Ack(client1.ConnectionId);
+            carrier.Ack(client2.ConnectionId);
+            Assert.False(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAck()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Ack(client2.ConnectionId);
+            carrier.Ack(client3.ConnectionId);
+            Assert.True(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAckInVainForOne()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Ack(client2.ConnectionId);
+            Assert.False(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAckGetData()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, id => id);
+            carrier.Ack(client2.ConnectionId);
+            carrier.Ack(client3.ConnectionId);
+            Assert.True(await assertion);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAckInVainForOneGetData()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAck(client1.ConnectionId, MessageType.MyMethod1, id => id);
+            carrier.Ack(client2.ConnectionId);
             Assert.False(await assertion);
         }
 
@@ -165,8 +220,8 @@ namespace CarrierTest
             return client;
         }
 
+        private HubConnection client1, client2, client3;
         private ICarrier<MessageType> carrier;
-        private TestServer server;
     }
 
     public enum MessageType { MyMethod1, MyMethod2 };
