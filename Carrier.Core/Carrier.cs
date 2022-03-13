@@ -130,9 +130,10 @@ namespace Carrier.Core
             return ok ? (ok, JsonSerializer.Deserialize<T2>(result)) : (ok, default(T2));
         }
 
-        public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000)
+        public async Task<Dictionary<string, T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000)
         {
-            throw new NotImplementedException();
+            await SendToAll(messageType, data);
+            return await ReceiveAnswers<T2>(GetReceiverIds(), maxMs);
         }
 
         public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
@@ -179,7 +180,7 @@ namespace Carrier.Core
             return await Task.WhenAny(Task.WhenAll(tasks), delayTask) != delayTask;
         }
 
-        private static async Task<(bool,string)> ReceiveAnswer(string connectionId, int maxMs)
+        private static async Task<(bool, string)> ReceiveAnswer(string connectionId, int maxMs)
         {
             var answer = "";
             var task = new Task(() => { });
@@ -190,6 +191,29 @@ namespace Carrier.Core
                     task.StartSafe();
                 });
             return (await Task.WhenAny(task, Task.Delay(maxMs)) == task, answer);
+        }
+
+        private static async Task<Dictionary<string, T2>> ReceiveAnswers<T2>(IEnumerable<string> connectionIds, int maxMs)
+        {
+            var answers = new ConcurrentDictionary<string, T2>();
+            var tasks = connectionIds.Select(connectionId =>
+            {
+                var task = new Task(() => { });
+                GetReceiver(connectionId).OnAnswer(
+                    json =>
+                    {
+                        var answer = JsonSerializer.Deserialize<T2>(json);
+                        if (answer is not null)
+                        {
+                            answers[connectionId] = answer;
+                        }
+                        task.StartSafe();
+                    });
+                return task;
+            });
+            var delayTask = Task.Delay(maxMs);
+            await Task.WhenAny(Task.WhenAll(tasks), delayTask);
+            return answers.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, answers.Comparer);
         }
 
         private readonly ICarrierTransport<TMessageType> transport;

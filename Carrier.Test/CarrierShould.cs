@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Carrier.SignalR;
 using Carrier.Core;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace CarrierTest
 {
@@ -214,6 +216,32 @@ namespace CarrierTest
             (bool ok2, int? _) = await assertion2;
             Assert.True(ok1);
             Assert.False(ok2);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAnswer()
+        {
+            var assertion = carrier.SendToAllAndAwaitAnswer<int, int>(MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client2.ConnectionId, "102");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(3, answers.Count);
+            Assert.AreEqual(101, answers[client1.ConnectionId]);
+            Assert.AreEqual(102, answers[client2.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
+        [Test]
+        public async Task SendToAllAndAwaitAnswerInVainForOne()
+        {
+            var assertion = carrier.SendToAllAndAwaitAnswer<int, int>(MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(2, answers.Count);
+            Assert.AreEqual(101, answers[client1.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
         }
 
         [Test]
