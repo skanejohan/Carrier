@@ -15,7 +15,7 @@
         public Task<bool> SendToAllExceptAndAwaitAck<T>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000);
         public Task<bool> SendToAllExceptAndAwaitAck<T>(string exceptConnectionId, TMessageType messageType, Func<string, T> getData, int maxMs = 5000);
 
-        public Task<T2> SendAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000);
+        public Task<(bool, T2?)> SendToAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000);
         public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000);
         public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000);
         public Task<IEnumerable<T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000);
@@ -23,5 +23,6 @@
 
         // Responses from clients
         public void Ack(string connectionId);
+        public void Answer(string connectionId, string json);
     }
 }

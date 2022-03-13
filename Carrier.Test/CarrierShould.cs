@@ -194,6 +194,36 @@ namespace CarrierTest
             Assert.False(await assertion);
         }
 
+        [Test]
+        public async Task SendToOneAndAwaitAnswer()
+        {
+            var assertion = carrier.SendToAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "15");
+            (bool ok, int? value) = await assertion;
+            Assert.True(ok);
+            Assert.AreEqual(15, value);
+        }
+
+        [Test]
+        public async Task SendToTwoAwaitingAnswerFromOne()
+        {
+            var assertion1 = carrier.SendToAndAwaitAnswer<int,int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            var assertion2 = carrier.SendToAndAwaitAnswer<int, int>(client2.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "15");
+            (bool ok1, int? _) = await assertion1;
+            (bool ok2, int? _) = await assertion2;
+            Assert.True(ok1);
+            Assert.False(ok2);
+        }
+
+        [Test]
+        public async Task SendToOneAndAwaitAnswerInVain()
+        {
+            var assertion = carrier.SendToAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            (bool ok, int? _) = await assertion;
+            Assert.False(ok);
+        }
+
         private static TestServer GetServer()
         {
             var webHostBuilder = new WebHostBuilder()

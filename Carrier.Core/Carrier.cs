@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace Carrier.Core
 {
@@ -31,15 +32,26 @@ namespace Carrier.Core
         {
             public void OnAck(Action action)
             {
-                this.action = action;
+                this.ackAction = action;
+            }
+
+            public void OnAnswer(Action<string> action)
+            {
+                this.answerAction = action;
             }
 
             public void Ack()
             {
-                action.Invoke();
+                ackAction.Invoke();
             }
 
-            private Action action = () => { };
+            public void Answer(string json)
+            {
+                answerAction.Invoke(json);
+            }
+
+            private Action ackAction = () => { };
+            private Action<string> answerAction = s => { };
         }
     }
 
@@ -111,9 +123,11 @@ namespace Carrier.Core
             return await ReceiveAcks(GetReceiverIds().Where(id => id != exceptConnectionId), maxMs);
         }
 
-        public Task<T2> SendAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000)
+        public async Task<(bool, T2?)> SendToAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000)
         {
-            throw new NotImplementedException();
+            await SendTo(connectionId, messageType, data);
+            var (ok, result) = await ReceiveAnswer(connectionId, maxMs);
+            return ok ? (ok, JsonSerializer.Deserialize<T2>(result)) : (ok, default(T2));
         }
 
         public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000)
@@ -141,14 +155,19 @@ namespace Carrier.Core
             GetReceiver(connectionId).Ack();
         }
 
-        private async Task<bool> ReceiveAck(string connectionId, int maxMs)
+        public void Answer(string connectionId, string json)
+        {
+            GetReceiver(connectionId).Answer(json);
+        }
+
+        private static async Task<bool> ReceiveAck(string connectionId, int maxMs)
         {
             var task = new Task(() => { });
             GetReceiver(connectionId).OnAck(() => task.StartSafe());
             return await Task.WhenAny(task, Task.Delay(maxMs)) == task;
         }
 
-        private async Task<bool> ReceiveAcks(IEnumerable<string> connectionIds, int maxMs)
+        private static async Task<bool> ReceiveAcks(IEnumerable<string> connectionIds, int maxMs)
         {
             var tasks = connectionIds.Select(connectionId =>
             {
@@ -158,6 +177,19 @@ namespace Carrier.Core
             });
             var delayTask = Task.Delay(maxMs);
             return await Task.WhenAny(Task.WhenAll(tasks), delayTask) != delayTask;
+        }
+
+        private static async Task<(bool,string)> ReceiveAnswer(string connectionId, int maxMs)
+        {
+            var answer = "";
+            var task = new Task(() => { });
+            GetReceiver(connectionId).OnAnswer(
+                a =>
+                {
+                    answer = a;
+                    task.StartSafe();
+                });
+            return (await Task.WhenAny(task, Task.Delay(maxMs)) == task, answer);
         }
 
         private readonly ICarrierTransport<TMessageType> transport;
