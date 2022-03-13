@@ -36,10 +36,10 @@ namespace Carrier.Core
 
             public void Ack()
             {
-                action?.Invoke();
+                action.Invoke();
             }
 
-            private Action action;
+            private Action action = () => { };
         }
     }
 

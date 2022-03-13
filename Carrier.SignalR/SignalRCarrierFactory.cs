@@ -1,12 +1,22 @@
 ﻿using Carrier.Core;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Carrier.SignalR
 {
     public static class SignalRCarrierFactory
     {
-        public static ICarrier<TMessageType> GetCarrier<TMessageType>(IServiceProvider serviceProvider)
+        public static bool TryGetCarrier<TMessageType>(IServiceProvider serviceProvider, out ICarrier<TMessageType>? carrier)
         {
-            return new Carrier<TMessageType>(new SignalRCarrierTransport<TMessageType>(serviceProvider.GetCarrierHubContext<TMessageType>()));
+            var context = serviceProvider.GetService(typeof(IHubContext<SignalRCarrierHub>));
+
+            if (context == null)
+            {
+                carrier = null;
+                return false;
+            }
+
+            carrier = new Carrier<TMessageType>(new SignalRCarrierTransport<TMessageType>((IHubContext<SignalRCarrierHub>)context));
+            return true;
         }
     }
 }

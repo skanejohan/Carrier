@@ -17,10 +17,12 @@ namespace CarrierTest
         {
             var server = GetServer();
 
-            carrier = SignalRCarrierFactory.GetCarrier<MessageType>(server.Services);
-            client1 = await GetClient(server);
-            client2 = await GetClient(server);
-            client3 = await GetClient(server);
+            if (SignalRCarrierFactory.TryGetCarrier<MessageType>(server.Services, out carrier))
+            {
+                client1 = await GetClient(server);
+                client2 = await GetClient(server);
+                client3 = await GetClient(server);
+            }
         }
 
         [Test]

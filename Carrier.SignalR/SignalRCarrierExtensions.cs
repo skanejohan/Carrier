@@ -16,10 +16,5 @@ namespace Carrier.SignalR
         {
             return endpoints.MapHub<SignalRCarrierHub>("/carrierhub");
         }
-
-        public static IHubContext<SignalRCarrierHub> GetCarrierHubContext<T>(this IServiceProvider services)
-        {
-            return (IHubContext<SignalRCarrierHub>)services.GetService(typeof(IHubContext<SignalRCarrierHub>));
-        }
     }
 }
