@@ -219,6 +219,14 @@ namespace CarrierTest
         }
 
         [Test]
+        public async Task SendToOneAndAwaitAnswerInVain()
+        {
+            var assertion = carrier.SendToAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            (bool ok, int? _) = await assertion;
+            Assert.False(ok);
+        }
+
+        [Test]
         public async Task SendToAllAndAwaitAnswer()
         {
             var assertion = carrier.SendToAllAndAwaitAnswer<int, int>(MessageType.MyMethod1, 15);
@@ -245,12 +253,78 @@ namespace CarrierTest
         }
 
         [Test]
-        public async Task SendToOneAndAwaitAnswerInVain()
+        public async Task SendToAllAndAwaitAnswerGetData()
         {
-            var assertion = carrier.SendToAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
-            (bool ok, int? _) = await assertion;
-            Assert.False(ok);
+            var assertion = carrier.SendToAllAndAwaitAnswer<string, int>(MessageType.MyMethod1, id => id);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client2.ConnectionId, "102");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(3, answers.Count);
+            Assert.AreEqual(101, answers[client1.ConnectionId]);
+            Assert.AreEqual(102, answers[client2.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
         }
+
+        [Test]
+        public async Task SendToAllAndAwaitAnswerInVainForOneGetData()
+        {
+            var assertion = carrier.SendToAllAndAwaitAnswer<string, int>(MessageType.MyMethod1, id => id);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(2, answers.Count);
+            Assert.AreEqual(101, answers[client1.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAnswer()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client2.ConnectionId, "102");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(2, answers.Count);
+            Assert.AreEqual(102, answers[client2.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAnswerInVainForOne()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAnswer<int, int>(client1.ConnectionId, MessageType.MyMethod1, 15);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(1, answers.Count);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAnswerGetData()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAnswer<string, int>(client1.ConnectionId, MessageType.MyMethod1, id => id);
+            carrier.Answer(client1.ConnectionId, "101");
+            carrier.Answer(client2.ConnectionId, "102");
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(2, answers.Count);
+            Assert.AreEqual(102, answers[client2.ConnectionId]);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
+        [Test]
+        public async Task SendToAllExceptAndAwaitAnswerInVainForOneGetData()
+        {
+            var assertion = carrier.SendToAllExceptAndAwaitAnswer<string, int>(client1.ConnectionId, MessageType.MyMethod1, id => id);
+            carrier.Answer(client3.ConnectionId, "103");
+            var answers = await assertion;
+            Assert.AreEqual(1, answers.Count);
+            Assert.AreEqual(103, answers[client3.ConnectionId]);
+        }
+
 
         private static TestServer GetServer()
         {

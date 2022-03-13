@@ -136,19 +136,22 @@ namespace Carrier.Core
             return await ReceiveAnswers<T2>(GetReceiverIds(), maxMs);
         }
 
-        public Task<IEnumerable<T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        public async Task<Dictionary<string, T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
         {
-            throw new NotImplementedException();
+            await SendToAll(messageType, getData);
+            return await ReceiveAnswers<T2>(GetReceiverIds(), maxMs);
         }
 
-        public Task<IEnumerable<T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000)
+        public async Task<Dictionary<string, T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, T data, int maxMs = 5000)
         {
-            throw new NotImplementedException();
+            await SendToAllExcept(exceptConnectionId, messageType, data);
+            return await ReceiveAnswers<T2>(GetReceiverIds().Where(id => id != exceptConnectionId), maxMs);
         }
 
-        public Task<IEnumerable<T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
+        public async Task<Dictionary<string, T2>> SendToAllExceptAndAwaitAnswer<T, T2>(string exceptConnectionId, TMessageType messageType, Func<string, T> getData, int maxMs = 5000)
         {
-            throw new NotImplementedException();
+            await SendToAllExcept(exceptConnectionId, messageType, getData);
+            return await ReceiveAnswers<T2>(GetReceiverIds().Where(id => id != exceptConnectionId), maxMs);
         }
 
         public void Ack(string connectionId)
