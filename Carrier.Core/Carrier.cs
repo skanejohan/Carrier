@@ -11,15 +11,21 @@ namespace Carrier.Core
 
         public void AddReceiver(string id)
         {
-            receivers[id] = new Receiver();
-            OnClientsUpdated?.Invoke(GetReceiverIds());
+            lock(receivers)
+            {
+                receivers[id] = new Receiver();
+                OnClientsUpdated?.Invoke(GetReceiverIds());
+            }
         }
 
         public void RemoveReceiver(string id)
         {
-            if (receivers.TryRemove(id, out var _))
+            lock (receivers)
             {
-                OnClientsUpdated?.Invoke(GetReceiverIds());
+                if (receivers.TryRemove(id, out var _))
+                {
+                    OnClientsUpdated?.Invoke(GetReceiverIds());
+                }
             }
         }
 
@@ -147,8 +153,8 @@ namespace Carrier.Core
         public async Task<(bool, T2?)> SendToAndAwaitAnswer<T, T2>(string connectionId, TMessageType messageType, T data, int maxMs = 5000)
         {
             await SendTo(connectionId, messageType, data);
-            var (ok, result) = await ReceiveAnswer(connectionId, maxMs);
-            return ok ? (ok, JsonSerializer.Deserialize<T2>(result)) : (ok, default(T2));
+            var (ok, result) = await ReceiveAnswer<T2>(connectionId, maxMs);
+            return ok ? (ok, result) : (ok, default(T2));
         }
 
         public async Task<Dictionary<string, T2>> SendToAllAndAwaitAnswer<T, T2>(TMessageType messageType, T data, int maxMs = 5000)
@@ -204,14 +210,14 @@ namespace Carrier.Core
             return await Task.WhenAny(Task.WhenAll(tasks), delayTask) != delayTask;
         }
 
-        private async Task<(bool, string)> ReceiveAnswer(string connectionId, int maxMs)
+        private async Task<(bool, T2)> ReceiveAnswer<T2>(string connectionId, int maxMs)
         {
-            var answer = "";
+            var answer = default(T2);
             var task = new Task(() => { });
             GetReceiver(connectionId).OnAnswer(
                 a =>
                 {
-                    answer = a;
+                    answer = JsonSerializer.Deserialize<T2>(a);
                     task.StartSafe();
                 });
             return (await Task.WhenAny(task, Task.Delay(maxMs)) == task, answer);
