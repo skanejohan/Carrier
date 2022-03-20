@@ -13,7 +13,7 @@ namespace Carrier.SignalR
 
         public Task SendTo<T>(string connectionId, TMessageType messageType, T data)
         {
-            return hubContext.Clients.Client(connectionId).SendAsync(ToStringSafe(messageType), JsonSerializer.Serialize(data));
+            return hubContext.Clients.Client(connectionId).SendAsync(ToStringSafe(messageType), JsonSerializer.Serialize(data), connectionId);
         }
 
         public Task SendToAll<T>(TMessageType messageType, T data)

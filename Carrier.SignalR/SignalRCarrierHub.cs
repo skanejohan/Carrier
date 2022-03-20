@@ -6,13 +6,13 @@ namespace Carrier.SignalR
     {
         public override Task OnConnectedAsync()
         {
-            Core.Carrier.AddReceiver(Context.ConnectionId);
+            Core.Carrier.Instance?.AddReceiver(Context.ConnectionId);
             return base.OnConnectedAsync();
         }
 
         public override Task OnDisconnectedAsync(Exception? exception)
         {
-            Core.Carrier.RemoveReceiver(Context.ConnectionId);
+            Core.Carrier.Instance?.RemoveReceiver(Context.ConnectionId);
             return base.OnDisconnectedAsync(exception);
         }
     }

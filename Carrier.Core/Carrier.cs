@@ -3,30 +3,39 @@ using System.Text.Json;
 
 namespace Carrier.Core
 {
-    public class Carrier
+    public class Carrier : ICarrierMonitor
     {
-        public static void AddReceiver(string id)
+        public static Carrier? Instance => instance;
+
+        public Action<IEnumerable<string>>? OnClientsUpdated { get; set; }
+
+        public void AddReceiver(string id)
         {
             receivers[id] = new Receiver();
+            OnClientsUpdated?.Invoke(GetReceiverIds());
         }
 
-        public static void RemoveReceiver(string id)
+        public void RemoveReceiver(string id)
         {
-            receivers.TryRemove(id, out var _);
+            if (receivers.TryRemove(id, out var _))
+            {
+                OnClientsUpdated?.Invoke(GetReceiverIds());
+            }
         }
 
-        protected static Receiver GetReceiver(string id)
+        protected Receiver GetReceiver(string id)
         {
             return receivers[id] ?? dummyReceiver;
         }
 
-        protected static IEnumerable<string> GetReceiverIds()
+        protected IEnumerable<string> GetReceiverIds()
         {
             return receivers.Keys.ToList();
         }
 
-        private static readonly ConcurrentDictionary<string, Receiver> receivers = new();
-        private static readonly Receiver dummyReceiver = new();
+        private readonly ConcurrentDictionary<string, Receiver> receivers = new();
+        private readonly Receiver dummyReceiver = new();
+        protected static Carrier? instance;
 
         public class Receiver
         {
@@ -57,19 +66,31 @@ namespace Carrier.Core
 
     public class Carrier<TMessageType> : Carrier, ICarrier<TMessageType>
     {
-        public Carrier(ICarrierTransport<TMessageType> transport)
+        public static Carrier<TMessageType>? Create(ICarrierTransport<TMessageType> transport)
+        {
+            if (instance == null)
+            {
+                instance = new Carrier<TMessageType>(transport);
+            }
+            return instance as Carrier<TMessageType>;
+        }
+
+        private Carrier(ICarrierTransport<TMessageType> transport)
         {
             this.transport = transport;
         }
 
         public Task SendTo<T>(string connectionId, TMessageType messageType, T data)
         {
-            return transport.SendTo(connectionId, messageType, data); ;
+            return transport.SendTo(connectionId, messageType, data);
         }
 
-        public Task SendToAll<T>(TMessageType messageType, T data)
+        public async Task SendToAll<T>(TMessageType messageType, T data)
         {
-            return transport.SendToAll(messageType, data); ;
+            foreach (var connectionId in GetReceiverIds())
+            {
+                await transport.SendTo(connectionId, messageType, data);
+            }
         }
 
         public async Task SendToAll<T>(TMessageType messageType, Func<string, T> getData)
@@ -164,14 +185,14 @@ namespace Carrier.Core
             GetReceiver(connectionId).Answer(json);
         }
 
-        private static async Task<bool> ReceiveAck(string connectionId, int maxMs)
+        private async Task<bool> ReceiveAck(string connectionId, int maxMs)
         {
             var task = new Task(() => { });
             GetReceiver(connectionId).OnAck(() => task.StartSafe());
             return await Task.WhenAny(task, Task.Delay(maxMs)) == task;
         }
 
-        private static async Task<bool> ReceiveAcks(IEnumerable<string> connectionIds, int maxMs)
+        private async Task<bool> ReceiveAcks(IEnumerable<string> connectionIds, int maxMs)
         {
             var tasks = connectionIds.Select(connectionId =>
             {
@@ -183,7 +204,7 @@ namespace Carrier.Core
             return await Task.WhenAny(Task.WhenAll(tasks), delayTask) != delayTask;
         }
 
-        private static async Task<(bool, string)> ReceiveAnswer(string connectionId, int maxMs)
+        private async Task<(bool, string)> ReceiveAnswer(string connectionId, int maxMs)
         {
             var answer = "";
             var task = new Task(() => { });
@@ -196,7 +217,7 @@ namespace Carrier.Core
             return (await Task.WhenAny(task, Task.Delay(maxMs)) == task, answer);
         }
 
-        private static async Task<Dictionary<string, T2>> ReceiveAnswers<T2>(IEnumerable<string> connectionIds, int maxMs)
+        private async Task<Dictionary<string, T2>> ReceiveAnswers<T2>(IEnumerable<string> connectionIds, int maxMs)
         {
             var answers = new ConcurrentDictionary<string, T2>();
             var tasks = connectionIds.Select(connectionId =>

@@ -19,7 +19,7 @@ namespace CarrierTest
         {
             var server = GetServer();
 
-            if (SignalRCarrierFactory.TryGetCarrier<MessageType>(server.Services, out carrier))
+            if (SignalRCarrierFactory.TryGetCarrier<MessageType>(server.Services, out carrier, out _))
             {
                 client1 = await GetClient(server);
                 client2 = await GetClient(server);
